@@ -886,11 +886,13 @@ class AiChatViewProvider implements vscode.WebviewViewProvider {
 									
 									if (fixSuggestion) {
 										aiResponse += \`### Suggested Fix:\\n\\\`\\\`\\\`\\n\${
-											fixSuggestion.text
-												.replace('Analyze the following Python code and suggest fixes:', '')
-												.replace(/\`\`\`\\n/, '')
-												.replace(/\`\`\`$/, '')
-												.trim()
+											typeof fixSuggestion === 'object' && fixSuggestion.text
+												? fixSuggestion.text
+													.replace('Analyze the following Python code and suggest fixes:', '')
+													.replace(/\`\`\`\\n/, '')
+													.replace(/\`\`\`$/, '')
+													.trim()
+												: fixSuggestion
 										}\\n\\\`\\\`\\\`\\n\\n\`;
 									}
 
@@ -902,8 +904,59 @@ class AiChatViewProvider implements vscode.WebviewViewProvider {
 												.join('\\n')
 										}\\n\\\`\\\`\\\`\`;
 									}
+									
+									// Add file analysis results if present
+									if (data.file_analysis && data.file_analysis.length > 0) {
+										aiResponse += '\\n\\n### Attached Files Analysis:';
+										data.file_analysis.forEach(file => {
+											aiResponse += \`\\n\\n#### \${file.fileName}:\\n\`;
+											aiResponse += \`**Status**: \${file.status === 'error' ? '❌ Error' : '✅ Success'}\\n\`;
+											aiResponse += \`**Message**: \${file.message}\\n\`;
+											
+											if (file.status === 'error' && file.fix_suggestion) {
+												aiResponse += \`\\n**Suggested Fix**:\\n\\\`\\\`\\\`\\n\${
+													typeof file.fix_suggestion === 'object' && file.fix_suggestion.text
+														? file.fix_suggestion.text
+															.replace('Analyze the following Python code and suggest fixes:', '')
+															.replace(/\`\`\`\\n/, '')
+															.replace(/\`\`\`$/, '')
+															.trim()
+														: file.fix_suggestion
+												}\\n\\\`\\\`\\\`\`;
+											}
+										});
+									}
 								} else {
 									aiResponse = \`### Success:\\n\${data.message || ''}\\n\\n### Code:\\n\\\`\\\`\\\`\\n\${data.code || ''}\\n\\\`\\\`\\\`\`;
+									
+									// Add file analysis results if there are any - especially if there are errors in attachments
+									if (data.file_analysis && data.file_analysis.length > 0) {
+										const errorsInAttachments = data.file_analysis.some(file => file.status === 'error');
+										
+										aiResponse += '\\n\\n### Attached Files Analysis:';
+										
+										if (errorsInAttachments) {
+											aiResponse += '\\n⚠️ **Some attached files have errors:**';
+										}
+										
+										data.file_analysis.forEach(file => {
+											aiResponse += \`\\n\\n#### \${file.fileName}:\\n\`;
+											aiResponse += \`**Status**: \${file.status === 'error' ? '❌ Error' : '✅ Success'}\\n\`;
+											aiResponse += \`**Message**: \${file.message}\\n\`;
+											
+											if (file.status === 'error' && file.fix_suggestion) {
+												aiResponse += \`\\n**Suggested Fix**:\\n\\\`\\\`\\\`\\n\${
+													typeof file.fix_suggestion === 'object' && file.fix_suggestion.text
+														? file.fix_suggestion.text
+															.replace('Analyze the following Python code and suggest fixes:', '')
+															.replace(/\`\`\`\\n/, '')
+															.replace(/\`\`\`$/, '')
+															.trim()
+														: file.fix_suggestion
+												}\\n\\\`\\\`\\\`\`;
+											}
+										});
+									}
 								}
 
 								const aiMessage = { 
